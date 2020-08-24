@@ -6,7 +6,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using System.Windows;
 
-namespace sample_etw_consumer_csharp
+namespace ETWTestProvider
 {
     /// <summary>
     /// App.xaml の相互作用ロジック

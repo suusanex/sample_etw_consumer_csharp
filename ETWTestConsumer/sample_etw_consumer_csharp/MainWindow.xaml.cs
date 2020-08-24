@@ -1,8 +1,10 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.ComponentModel;
+using System.Diagnostics;
 using System.Linq;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
@@ -39,23 +41,44 @@ namespace sample_etw_consumer_csharp
         }
 
         private TraceEventSession m_TraceEventSession;
-        private const string m_TraceProviderGuid = "{my-provider-guid}";
+        private const string m_TraceProviderGuid = "{3bcf1aae-4f19-49a0-9521-533e43fce039}";
         private ETWTraceEventSource m_Consumer;
+        private static readonly string m_TraceSessionName = "sample-trace-session";
+        private CancellationTokenSource m_ConsumerCancel;
 
         private void OnSessionStart(object sender, RoutedEventArgs e)
         {
-            m_TraceEventSession = new TraceEventSession("sample-trace-session");
-            m_TraceEventSession.EnableProvider(m_TraceProviderGuid);
+            m_TraceEventSession = new TraceEventSession(m_TraceSessionName);
+            var bRet = m_TraceEventSession.EnableProvider(new Guid(m_TraceProviderGuid));
+            if (bRet)
+            {
+                WriteLine("Session Exist");
+            }
+
+            WriteLine("Session Start");
         }
 
         private void OnConsumerStart(object sender, RoutedEventArgs e)
         {
-            m_Consumer = new ETWTraceEventSource("sample-consumer", TraceEventSourceType.Session);
+            m_Consumer = new ETWTraceEventSource(m_TraceSessionName, TraceEventSourceType.Session);
             m_Consumer.Dynamic.All += eventData =>
             {
-                WriteLine($"{eventData}");
+                Trace.WriteLine($"{eventData}");
             };
-            m_Consumer.Process();
+            m_Consumer.Dynamic.AddCallbackForProviderEvent("EventClass", "Test1", eventData =>
+            {
+                WriteLine($"Test1:{eventData.PayloadByName("message")}");
+            });
+
+            m_ConsumerCancel = new CancellationTokenSource();
+            Task.Run(() =>
+            {
+
+                m_Consumer.Process();
+
+            }, m_ConsumerCancel.Token);
+
+            WriteLine("Consumer Start");
         }
 
         private void OnTextBoxClear(object sender, RoutedEventArgs e)
@@ -66,6 +89,9 @@ namespace sample_etw_consumer_csharp
 
         private void OnClosing(object sender, CancelEventArgs e)
         {
+            m_Consumer?.StopProcessing();
+            m_Consumer?.Dispose();
+            m_ConsumerCancel?.Cancel();
             m_TraceEventSession?.Dispose();
         }
     }
